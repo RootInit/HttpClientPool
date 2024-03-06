@@ -1,11 +1,33 @@
-/*
-Provides a ClientPool that wraps http.Clients to allow easy ratelimiting of
-several independant http.Clients with individual ratelimits
-*/
+// Package HttpClientPool allows easy orchestration of an HTTP client pool with built-in rate-limiting capabilities.
+//
+// Overview:
+//     This package enables efficient concurrent HTTP requests by managing a pool of individual HTTP clients,
+//     each with its own configuration and the ability to apply both per-client and global rate limits.
+//
+// Usage:
+//     To use this package, create a ClientPool using the NewClientPool function, specifying the desired
+//     client delay, pool delay, optional proxies, and user-agent weights. 
+//     To make simple requests call ClientPool.QuickRequest() with a RequestData bundle. This will
+//     automatically mark it as active and deactivate it when the request is complete.
+//
+//     For greater flexibility call ClientPool.GetClient() to get an available Client instance and
+//     and use it as with a normal http.Client instance. Call Client.SetInactive() when done with
+//     the Client to deactivate it.
+//
+// Example:
+//     clientPool := HttpClientPool.NewClientPool(time.Millisecond*100, time.Second, nil, nil)
+//
+// Features:
+//     - Dynamic client pool creation with customizable delays.
+//     - Rate-limiting for individual clients and the entire pool.
+//     - Automatic proxy rotation by ratelimit.
+//
+// GitHub repository: https://github.com/RootInit/HttpClientPool
+//
 package HttpClientPool
 
 import (
-	"HttpPool/Utils"
+	"HttpClientPool/Utils"
 	"net/url"
 	"time"
 )

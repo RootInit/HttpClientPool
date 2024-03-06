@@ -1,4 +1,4 @@
-package HttpPool
+package HttpClientPool
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ type ResponseStatusError struct {
 func (e *ResponseStatusError) Error() string {
 	message := fmt.Sprintf("%d: %s\n", e.Response.StatusCode, e.Response.Status)
 	message += fmt.Sprintf(" %s URL: %v\n", e.Request.Type, e.Request.Params)
-	message += fmt.Sprintf(" Body: %v\n", e.Request.BodyData)
+	message += fmt.Sprintf(" Body: %v\n", e.Response.Body)
 	message += " Params:\n"
 	for key, value := range e.Request.Params {
 		message += fmt.Sprintf("   %s: %s\n", key, value)
