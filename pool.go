@@ -1,33 +1,35 @@
 // Package HttpClientPool allows easy orchestration of an HTTP client pool with built-in rate-limiting capabilities.
 //
 // Overview:
-//     This package enables efficient concurrent HTTP requests by managing a pool of individual HTTP clients,
-//     each with its own configuration and the ability to apply both per-client and global rate limits.
+//
+//	This package enables efficient concurrent HTTP requests by managing a pool of individual HTTP clients,
+//	each with its own configuration and the ability to apply both per-client and global rate limits.
 //
 // Usage:
-//     To use this package, create a ClientPool using the NewClientPool function, specifying the desired
-//     client delay, pool delay, optional proxies, and user-agent weights. 
-//     To make simple requests call ClientPool.QuickRequest() with a RequestData bundle. This will
-//     automatically mark it as active and deactivate it when the request is complete.
 //
-//     For greater flexibility call ClientPool.GetClient() to get an available Client instance and
-//     and use it as with a normal http.Client instance. Call Client.SetInactive() when done with
-//     the Client to deactivate it.
+//	To use this package, create a ClientPool using the NewClientPool function, specifying the desired
+//	client delay, pool delay, optional proxies, and user-agent weights.
+//	To make simple requests call ClientPool.QuickRequest() with a RequestData bundle. This will
+//	automatically mark it as active and deactivate it when the request is complete.
+//
+//	For greater flexibility call ClientPool.GetClient() to get an available Client instance and
+//	and use it as with a normal http.Client instance. Call Client.SetInactive() when done with
+//	the Client to deactivate it.
 //
 // Example:
-//     clientPool := HttpClientPool.NewClientPool(time.Millisecond*100, time.Second, nil, nil)
+//
+//	clientPool := HttpClientPool.NewClientPool(time.Millisecond*100, time.Second, nil, nil)
 //
 // Features:
-//     - Dynamic client pool creation with customizable delays.
-//     - Rate-limiting for individual clients and the entire pool.
-//     - Automatic proxy rotation by ratelimit.
+//   - Dynamic client pool creation with customizable delays.
+//   - Rate-limiting for individual clients and the entire pool.
+//   - Automatic proxy rotation by ratelimit.
 //
 // GitHub repository: https://github.com/RootInit/HttpClientPool
-//
 package HttpClientPool
 
 import (
-	"HttpClientPool/Utils"
+	"github.com/RootInit/HttpClientPool/Utils"
 	"net/url"
 	"time"
 )
@@ -76,17 +78,43 @@ func NewClientPool(clientDelay, poolDelay time.Duration, proxies []*url.URL, use
 
 // AddClient adds a new HTTP client to the client pool.
 //
+// This function will accept duplicate clients and add them.
+//
 // Parameters:
 //   - client (*Client): The HTTP client to be added to the pool.
-func (pool ClientPool) AddClient(client *Client) {
+func (pool *ClientPool) AddClient(client *Client) {
 	pool.Clients = append(pool.Clients, client)
+}
+// RemoveClient removes a specific HTTP client from the client pool.
+//
+// If the client is not in the pool the pool remains unchanged.
+// If the client is duplicated in the pool only the first instance
+// of the client will be removed.
+//
+// Parameters:
+//   - client (*Client): The HTTP client to be removed from the pool.
+func (pool *ClientPool) RemmoveClient(client *Client) {
+	for idx, c := range pool.Clients {
+		// Compare pointer addresses
+		if c == client {
+      // Check if last element
+			if idx < len(pool.Clients)-1 {
+				// Remove from slice
+				pool.Clients = append(pool.Clients[:idx], pool.Clients[idx+1:]...)
+			} else {
+				// Remove the last element
+				pool.Clients = pool.Clients[:idx]
+			}
+      break
+		}
+	}
 }
 
 // SetPoolDelay sets the minimum delay between requests from all clients in the pool.
 //
 // Parameters:
 //   - poolDelay (time.Duration): The new shared delay. Use 0 for no delay.
-func (pool ClientPool) SetPoolDelay(poolDelay time.Duration) {
+func (pool *ClientPool) SetPoolDelay(poolDelay time.Duration) {
 	pool.delay = poolDelay
 }
 
@@ -94,32 +122,33 @@ func (pool ClientPool) SetPoolDelay(poolDelay time.Duration) {
 //
 // Parameters:
 //   - clientDelay (time.Duration): The new shared delay. Use 0 for no delay.
-func (pool ClientPool) SetClientDelay(clientDelay time.Duration) {
+func (pool *ClientPool) SetClientDelay(clientDelay time.Duration) {
 	for _, client := range pool.Clients {
-		client.delay = clientDelay
+		client.SetDelay(clientDelay)
 	}
 }
 
 // GetClient returns an available HTTP client from the pool.
+// The client is set as active and the lastReqTime is set to time.Now.
 //
 // This method blocks until a client becomes available in the pool.
 //
 // Returns:
 //   - *Client: A pointer to the available HTTP client.
-func (pool ClientPool) GetClient() *Client {
+func (pool *ClientPool) GetClient() *Client {
 	for {
 		// Get most recent request time
 		var lastReqTime time.Time
 		for _, client := range pool.Clients {
 			if client.lastReqTime.After(lastReqTime) {
 				lastReqTime = client.lastReqTime
-        client.SetActive()
 			}
 		}
 		// Check pool not ratelimited
 		if !lastReqTime.Add(pool.delay).After(time.Now()) {
 			for _, client := range pool.Clients {
 				if client.IsAvailable() {
+					client.SetActive()
 					return client
 				}
 			}
@@ -132,7 +161,7 @@ func (pool ClientPool) GetClient() *Client {
 //
 // This method ensures that all active clients finish their ongoing requests
 // before allowing the program to proceed.
-func (pool ClientPool) Done() {
+func (pool *ClientPool) Done() {
 	for {
 		done := true
 		for _, client := range pool.Clients {

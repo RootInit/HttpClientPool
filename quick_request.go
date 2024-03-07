@@ -1,10 +1,12 @@
 package HttpClientPool
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
-  "HttpPool/Utils"
 )
 
 // RequestData represents request data to be passed to QuickRequest
@@ -15,8 +17,8 @@ type RequestData struct {
 	// Url is the URL of the HTTP request.
 	Url string
 
-	// Params contains the url parameters for the request.
-	Params map[string]string
+	// Params contains the url parameters for the request. Key:Array of values
+	Params map[string][]string
 
 	// JsonData accepts any type with data to be sent in the request body as JSON.
 	//
@@ -37,8 +39,8 @@ type RequestData struct {
 	// Overrides both JsonData and FormData/FormFiles
 	RawData *io.Reader
 
-	// Headers contains the HTTP headers for the request.
-	Headers map[string]string
+	// Headers contains the HTTP headers for the request. Key:Array of values
+	Headers map[string][]string
 
 	// Cookies contains the cookies to be included in the request.
 	Cookies map[string]string
@@ -58,6 +60,7 @@ type ResponseData struct {
 	// Cookies contains the cookies received in the HTTP response.
 	Cookies map[string]string
 }
+
 // QuickRequest is a convenience wrapper arround http.Request allowing easy basic requests.
 // Performs an HTTP request with various options and returns the response.
 //
@@ -71,11 +74,7 @@ type ResponseData struct {
 // Returns:
 //   - ResponseData: A ResponseData struct containing HTTP response data.
 //   - error: An error, if any, encountered during the HTTP request.
-//
 func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
-	// Set client status
-	client.running = true
-	defer func() { client.running = false }()
 	// Initialize return variable
 	var response = ResponseData{}
 	// Set the request body
@@ -85,14 +84,14 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 		bodyReader = *request.RawData
 	} else if request.JsonData != nil {
 		// Use JsonData
-		reader, err := Utils.JsonDataReader(request.JsonData)
+		reader, err := jsonDataReader(request.JsonData)
 		if err != nil {
 			return response, err
 		}
 		bodyReader = reader
 	} else if request.FormData != nil || request.FormFiles != nil {
 		// Use FormData
-		reader, err := Utils.FormDataReader(request.FormData, request.FormFiles)
+		reader, err := formDataReader(request.FormData, request.FormFiles)
 		if err != nil {
 			return response, err
 		}
@@ -100,7 +99,6 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 	} else {
 		bodyReader = http.NoBody
 	}
-
 	// Create the request
 	req, err := http.NewRequest(request.Type, request.Url, bodyReader)
 	if err != nil {
@@ -109,14 +107,18 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 	// Set url paramaters
 	if request.Params != nil {
 		q := req.URL.Query()
-		for key, value := range request.Params {
-			q.Add(key, value)
+		for key, values := range request.Params {
+			for _, value := range values {
+				q.Add(key, value)
+			}
 		}
 		req.URL.RawQuery = q.Encode()
 	}
 	// Set headers
-	for key, value := range request.Headers {
-		req.Header.Set(key, value)
+	for key, values := range request.Headers {
+		for _, value := range values {
+			req.Header.Set(key, value)
+		}
 	}
 	// Set userAgent header
 	req.Header.Set("user-agent", client.UserAgent)
@@ -134,31 +136,72 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 		return response, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusOK {
-		// Read the body data
-		responseBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return response, err
-		}
-		resCookies := res.Cookies()
-		cookies := make(map[string]string, len(resCookies))
-		for _, c := range res.Cookies() {
-			cookies[c.Name] = c.Value
-		}
-		response = ResponseData{
-			Status:     res.Status,
-			StatusCode: res.StatusCode,
-			Body:       responseBody,
-			Cookies:    cookies,
-		}
-
+	// Read the body data
+	responseBody, err := io.ReadAll(res.Body)
+	if err != nil {
 		return response, err
-	} else if res.StatusCode == http.StatusTooManyRequests {
-		// Return RateLimitedError
-		return response, &RateLimitedError{}
-	} else {
-		// Log request information
-		return response, &ResponseStatusError{}
 	}
+	resCookies := res.Cookies()
+	cookies := make(map[string]string, len(resCookies))
+	for _, c := range res.Cookies() {
+		cookies[c.Name] = c.Value
+	}
+	response = ResponseData{
+		Status:     res.Status,
+		StatusCode: res.StatusCode,
+		Body:       responseBody,
+		Cookies:    cookies,
+	}
+	return response, nil
+
 }
 
+// jsonDataReader converts a Go data structure into a JSON-formatted io.Reader.
+//
+// Parameters:
+//   - data (interface{}): The Go data structure to be converted to JSON.
+//
+// Returns:
+//   - io.Reader: An io.Reader containing the JSON-encoded data.
+//   - error: An error, if any, encountered during the JSON encoding process.
+func jsonDataReader(data interface{}) (io.Reader, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	bodyData := bytes.NewBuffer(jsonData)
+	return bodyData, nil
+}
+
+// formDataReader creates a multipart/form-data io.Reader from a map of key-value pairs
+// and a map of files.
+//
+// Parameters:
+//   - data (map[string]string): A map of string key-value pairs representing form fields.
+//   - files (map[string]*os.File): A map of files to be included in the request body.
+//
+// Returns:
+//   - io.Reader: An io.Reader containing the multipart/form-data request body.
+//   - error: An error, if any, encountered during the construction of the request body.
+func formDataReader(data map[string]string, files map[string]*os.File) (io.Reader, error) {
+	var formData bytes.Buffer
+	writer := multipart.NewWriter(&formData)
+	// Set Data
+	for field, value := range data {
+		if err := writer.WriteField(field, value); err != nil {
+			return nil, err
+		}
+	}
+	// Set Files
+	for field, file := range files {
+		fileField, err := writer.CreateFormFile(field, file.Name())
+		if err != nil {
+			return nil, err
+		}
+		_, err = io.Copy(fileField, file)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &formData, nil
+}

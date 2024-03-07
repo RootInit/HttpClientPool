@@ -6,10 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-	"bytes"
-	"encoding/json"
-	"io"
-	"mime/multipart"
 	"os"
 )
 
@@ -151,52 +147,3 @@ func weightedRandom(weights []float32) int {
 }
 
 
-// JsonDataReader converts a Go data structure into a JSON-formatted io.Reader.
-//
-// Parameters:
-//   - data (interface{}): The Go data structure to be converted to JSON.
-//
-// Returns:
-//   - io.Reader: An io.Reader containing the JSON-encoded data.
-//   - error: An error, if any, encountered during the JSON encoding process.
-func JsonDataReader(data interface{}) (io.Reader, error) {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	bodyData := bytes.NewBuffer(jsonData)
-	return bodyData, nil
-}
-
-// FormDataReader creates a multipart/form-data io.Reader from a map of key-value pairs
-// and a map of files.
-//
-// Parameters:
-//   - data (map[string]string): A map of string key-value pairs representing form fields.
-//   - files (map[string]*os.File): A map of files to be included in the request body.
-//
-// Returns:
-//   - io.Reader: An io.Reader containing the multipart/form-data request body.
-//   - error: An error, if any, encountered during the construction of the request body.
-func FormDataReader(data map[string]string, files map[string]*os.File) (io.Reader, error) {
-	var formData bytes.Buffer
-	writer := multipart.NewWriter(&formData)
-	// Set Data
-	for field, value := range data {
-		if err := writer.WriteField(field, value); err != nil {
-			return nil, err
-		}
-	}
-	// Set Files
-	for field, file := range files {
-		fileField, err := writer.CreateFormFile(field, file.Name())
-		if err != nil {
-			return nil, err
-		}
-		_, err = io.Copy(fileField, file)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &formData, nil
-}

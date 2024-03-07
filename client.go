@@ -40,7 +40,6 @@ func NewClient(proxy *url.URL, userAgent string, delay time.Duration) *Client {
 		// No proxy
 		httpClient = &http.Client{}
 	}
-
 	client := Client{
 		Client:    httpClient,
 		UserAgent: userAgent,
@@ -59,6 +58,25 @@ func (client *Client) IsRunning() bool {
 	return client.running
 }
 
+// SetActive marks the HTTP client as active and updates the lastReqTime.
+func (client *Client) SetActive() {
+	client.running = true
+  client.lastReqTime = time.Now()
+}
+
+// SetInactive marks the HTTP client as inactive.
+func (client *Client) SetInactive() {
+	client.running = false
+}
+
+// Sets the clients delay
+//
+// Parameters:
+//   - delay (time.Duration): The duration of the new delay
+func (client *Client) SetDelay(delay time.Duration) {
+  client.delay = delay
+}
+
 // IsAvailable returns true if the client is not currently running or rate-limited.
 //
 // This method is used to check if the client is in an available state for new requests.
@@ -71,7 +89,7 @@ func (client *Client) IsAvailable() bool {
 		return false
 	}
 	// Check client ratelimited
-	if client.lastReqTime.Add(client.delay).Before(time.Now()) {
+	if client.lastReqTime.Add(client.delay).After(time.Now()) {
 		return false
 	}
 	return true
