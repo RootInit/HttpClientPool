@@ -69,29 +69,29 @@ type ResponseData struct {
 // including JSON, form, and other data using the RawData field.
 //
 // Parameters:
-//   - request (RequestData): The RequestData struct containing HTTP request data.
+//   - reqData (RequestData): The RequestData struct containing HTTP request data.
 //
 // Returns:
 //   - ResponseData: A ResponseData struct containing HTTP response data.
 //   - error: An error, if any, encountered during the HTTP request.
-func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
+func (client *Client) QuickRequest(reqData RequestData) (ResponseData, error) {
 	// Initialize return variable
 	var response = ResponseData{}
 	// Set the request body
 	var bodyReader io.Reader
-	if request.RawData != nil {
+	if reqData.RawData != nil {
 		// Use RawData
-		bodyReader = *request.RawData
-	} else if request.JsonData != nil {
+		bodyReader = *reqData.RawData
+	} else if reqData.JsonData != nil {
 		// Use JsonData
-		reader, err := jsonDataReader(request.JsonData)
+		reader, err := jsonDataReader(reqData.JsonData)
 		if err != nil {
 			return response, err
 		}
 		bodyReader = reader
-	} else if request.FormData != nil || request.FormFiles != nil {
+	} else if reqData.FormData != nil || reqData.FormFiles != nil {
 		// Use FormData
-		reader, err := formDataReader(request.FormData, request.FormFiles)
+		reader, err := formDataReader(reqData.FormData, reqData.FormFiles)
 		if err != nil {
 			return response, err
 		}
@@ -100,14 +100,14 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 		bodyReader = http.NoBody
 	}
 	// Create the request
-	req, err := http.NewRequest(request.Type, request.Url, bodyReader)
+	req, err := http.NewRequest(reqData.Type, reqData.Url, bodyReader)
 	if err != nil {
 		return response, err
 	}
 	// Set url paramaters
-	if request.Params != nil {
+	if reqData.Params != nil {
 		q := req.URL.Query()
-		for key, values := range request.Params {
+		for key, values := range reqData.Params {
 			for _, value := range values {
 				q.Add(key, value)
 			}
@@ -115,7 +115,7 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 		req.URL.RawQuery = q.Encode()
 	}
 	// Set headers
-	for key, values := range request.Headers {
+	for key, values := range reqData.Headers {
 		for _, value := range values {
 			req.Header.Set(key, value)
 		}
@@ -123,7 +123,7 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 	// Set userAgent header
 	req.Header.Set("user-agent", client.GetUserAgent())
 	// Set cookies
-	for name, value := range request.Cookies {
+	for name, value := range reqData.Cookies {
 		cookie := http.Cookie{
 			Name:  name,
 			Value: value,

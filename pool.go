@@ -136,12 +136,11 @@ func (pool *ClientPool) SetClientDelay(clientDelay time.Duration) {
 //
 // Returns:
 //   - *Client: A pointer to the available HTTP client.
-
 func (pool *ClientPool) GetClient() *Client {
 	// Calculate time since last request
 	var lastReqTime time.Time
 	for _, client := range pool.Clients {
-    clientReqTime := client.GetRequestTime()
+		clientReqTime := client.GetRequestTime()
 		if clientReqTime.After(lastReqTime) {
 			lastReqTime = clientReqTime
 		}
@@ -160,6 +159,20 @@ func (pool *ClientPool) GetClient() *Client {
 		}
 		time.Sleep(time.Millisecond * 1)
 	}
+}
+
+// QuickRequest is a convenience function which fetches a Client
+// with pool.GetClient and passes the RequestData to client.QuickRequest
+//
+// Parameters:
+//   - reqData (RequestData): The RequestData struct containing HTTP request data.
+//
+// Returns:
+//   - ResponseData: A ResponseData struct containing HTTP response data.
+//   - error: An error, if any, encountered during the HTTP request.
+func (pool *ClientPool) QuickRequest(reqData RequestData) (ResponseData, error) {
+	client := pool.GetClient()
+	return client.QuickRequest(reqData)
 }
 
 // Done blocks until all clients in the pool are inactive.

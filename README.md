@@ -24,5 +24,30 @@ For greater flexibility, use `ClientPool.GetClient()` to get an available `Clien
 ## Example
 
 ```go
-clientPool := HttpClientPool.NewClientPool(time.Millisecond*100, time.Second, nil, nil)
+proxies := Utils.UrlsFromFile("proxies.txt")
+clientDelay := time.Millisecond * 500//  Two requests per second
+poolDelay := Utils.RpsToDuration(25)//25 requests per second
+pool := HttpClientPool.NewClientPool(clientDelay, poolDelay, proxies, nil)
+// Fetch first 1000 pages
+for i:=0;i<1000;i++ {
+	request := RequestData{
+		Type: "GET",
+		Url:  "http://api.com/getByIndex",
+		Params: map[string][]string{
+			"Index": {i},
+		},
+		Headers: map[string][]string{
+			"Content-Type": {"application/json"},
+		},
+		Cookies: map[string]string{
+			"Api-Key": "5318008",
+		},
+	}
+	responseData, err := client.QuickRequest(request)
+	if err != nil {
+		t.Fatal(err, string(responseData.Body))
+	}
+    // Do something with responseData
+}
+```
 

@@ -124,23 +124,25 @@ func (client *Client) IsAvailable() bool {
 func (client *Client) SetUserAgent(userAgent string) {
 	client.mu.Lock()
 	defer client.mu.Unlock()
-  client.userAgent = userAgent
+	client.userAgent = userAgent
 }
+
 // GetUserAgent returns the Clients user-agent
 //
 // Returns:
-//   - string: the client.userAgent value 
+//   - string: the client.userAgent value
 func (client *Client) GetUserAgent() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
-  return client.userAgent
+	return client.userAgent
 }
+
 // GetRequestTime returns the last request time
 //
 // Returns:
-//   - time.Time: the client.lastReqTime value 
+//   - time.Time: the client.lastReqTime value
 func (client *Client) GetRequestTime() time.Time {
 	client.mu.Lock()
 	defer client.mu.Unlock()
-  return client.lastReqTime
+	return client.lastReqTime
 }
