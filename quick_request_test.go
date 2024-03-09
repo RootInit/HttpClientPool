@@ -148,7 +148,7 @@ func getRequestTest(client *Client, t *testing.T) {
 		t.Log(jsonFmt(echo.Headers))
 		return
 	}
-	if echo.Headers["User-Agent"][0] != client.UserAgent {
+	if echo.Headers["User-Agent"][0] != client.GetUserAgent() {
 		t.Errorf("Unexpected user-agent %s", echo.Headers["User-Agent"][0])
 	}
 	// Check cookie "CookieKey"

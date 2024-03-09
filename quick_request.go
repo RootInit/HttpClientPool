@@ -121,7 +121,7 @@ func (client *Client) QuickRequest(request RequestData) (ResponseData, error) {
 		}
 	}
 	// Set userAgent header
-	req.Header.Set("user-agent", client.UserAgent)
+	req.Header.Set("user-agent", client.GetUserAgent())
 	// Set cookies
 	for name, value := range request.Cookies {
 		cookie := http.Cookie{

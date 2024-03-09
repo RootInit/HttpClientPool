@@ -13,8 +13,8 @@ import (
 type Client struct {
 	// Client is the underlying HTTP client for making requests.
 	*http.Client
-	// UserAgent is the user agent string to be set in the client's requests.
-	UserAgent   string
+	// userAgent is the user agent string to be set in the client's requests.
+	userAgent   string
 	delay       time.Duration
 	running     bool
 	lastReqTime time.Time
@@ -44,7 +44,7 @@ func NewClient(proxy *url.URL, userAgent string, delay time.Duration) *Client {
 	}
 	client := Client{
 		Client:    httpClient,
-		UserAgent: userAgent,
+		userAgent: userAgent,
 		delay:     delay,
 	}
 	return &client
@@ -117,6 +117,24 @@ func (client *Client) IsAvailable() bool {
 	return true
 }
 
+// GetUserAgent sets the Clients user-agent
+//
+// Parameters:
+//   - userAgent (string): the userAgent to set
+func (client *Client) SetUserAgent(userAgent string) {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+  client.userAgent = userAgent
+}
+// GetUserAgent returns the Clients user-agent
+//
+// Returns:
+//   - string: the client.userAgent value 
+func (client *Client) GetUserAgent() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+  return client.userAgent
+}
 // GetRequestTime returns the last request time
 //
 // Returns:

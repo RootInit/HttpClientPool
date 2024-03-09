@@ -3,6 +3,7 @@ package HttpClientPool
 // Note: Tests use unrealistically low delay for fast tests.
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -88,25 +89,61 @@ func TestMultiClientPoolRatelimiting(t *testing.T) {
 		proxies[i] = dummyProxy
 	}
 	pool := NewClientPool(0, 0, proxies, nil)
+	for idx, client := range pool.Clients {
+		client.SetUserAgent(fmt.Sprintf("Client #%d", idx+1))
+	}
 	// Make 100 requests with no ratelimit
 	tic := time.Now()
 	for i := 0; i < 100; i++ {
-    client := pool.GetClient()
+		client := pool.GetClient()
 		go func() {
 			// Simulating a request which takes 5ms
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * 5)
 			client.SetInactive()
 		}()
 	}
+	// With 10 clients with 5ms request time each it would be possible to make a
+	// request every 0.5ms or 100 requests in 50ms
 	timeSpent := time.Now().Sub(tic) / time.Millisecond
-	if timeSpent < 95 || timeSpent > 105 { // Should take 5 ms
+	if timeSpent < 50 || timeSpent > 60 { // Should take 5 ms per request
 		t.Errorf("Requests took an unexpected amount of time (%d)", timeSpent)
 	}
-	// With 10 clients with 10ms delay each it would be possible to make a request
-	// every 1ms. The poolDelay of 5ms should restrict this to one "request" every 5ms.
 
-	// poolDelay := 5 * time.Millisecond
-	// clientDelay := 10 * time.Millisecond
+	// Make 100 requests with a 10ms client ratelimit
+	pool.SetClientDelay(10 * time.Millisecond)
+	tic = time.Now()
+	for i := 0; i < 100; i++ {
+		client := pool.GetClient()
+		go func() {
+			// Simulating a request which takes 5ms
+			time.Sleep(time.Millisecond * 5)
+			client.SetInactive()
+		}()
+	}
+	// With 10 clients with 10ms request time each it would be possible to make a
+	// request every 1ms or 100 requests in 100 ms.
+	timeSpent = time.Now().Sub(tic) / time.Millisecond
+	if timeSpent < 100 || timeSpent > 110 { // Should take 10 ms per request
+		t.Errorf("Requests took an unexpected amount of time (%d)", timeSpent)
+	}
+	// Make 100 requests with an additional 5ms pool ratelimit
+	pool.SetPoolDelay(2 * time.Millisecond)
+	tic = time.Now()
+	for i := 0; i < 100; i++ {
+		client := pool.GetClient()
+		go func() {
+			// Simulating a request which takes 5ms
+			time.Sleep(time.Millisecond * 5)
+			client.SetInactive()
+		}()
+	}
+	// With 10 clients with 10ms request time each it would be possible to make a
+	// request every 1ms or 100 requests in 100 ms. The pool delay of 2ms instead
+  // caps this to one request every 2ms
+	timeSpent = time.Now().Sub(tic) / time.Millisecond
+	if timeSpent < 200 || timeSpent > 250 { // Should take 10 ms per request
+		t.Errorf("Requests took an unexpected amount of time (%d)", timeSpent)
+	}
 }
 
 // */
@@ -145,5 +182,3 @@ func TestAddRemoveClients(t *testing.T) {
 		t.Errorf("Incorrect pool size. Expected 0 got %d", len(pool.Clients))
 	}
 }
-
-
