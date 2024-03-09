@@ -3,6 +3,7 @@ package HttpClientPool
 import (
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type Client struct {
 	delay       time.Duration
 	running     bool
 	lastReqTime time.Time
+	mu          sync.Mutex
 }
 
 // NewClient creates a new HTTP client with optional proxy, user agent, and request delay.
@@ -55,26 +57,44 @@ func NewClient(proxy *url.URL, userAgent string, delay time.Duration) *Client {
 // Returns:
 //   - bool: True if the client is running; otherwise, false.
 func (client *Client) IsRunning() bool {
+	client.mu.Lock()
+	defer client.mu.Unlock()
 	return client.running
 }
 
 // SetActive marks the HTTP client as active and updates the lastReqTime.
 func (client *Client) SetActive() {
+	client.mu.Lock()
+	defer client.mu.Unlock()
 	client.running = true
-  client.lastReqTime = time.Now()
+	client.lastReqTime = time.Now()
 }
 
 // SetInactive marks the HTTP client as inactive.
 func (client *Client) SetInactive() {
+	client.mu.Lock()
+	defer client.mu.Unlock()
 	client.running = false
 }
 
-// Sets the clients delay
+// SetDelay ets the clients delay
 //
 // Parameters:
 //   - delay (time.Duration): The duration of the new delay
 func (client *Client) SetDelay(delay time.Duration) {
-  client.delay = delay
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	client.delay = delay
+}
+
+// GetDelay returns the clients delay
+//
+// Returns:
+//   - time.Duration: The duration of the clients delay
+func (client *Client) GetDelay() time.Duration {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.delay
 }
 
 // IsAvailable returns true if the client is not currently running or rate-limited.
@@ -84,6 +104,8 @@ func (client *Client) SetDelay(delay time.Duration) {
 // Returns:
 //   - bool: True if the client is available; otherwise, false.
 func (client *Client) IsAvailable() bool {
+	client.mu.Lock()
+	defer client.mu.Unlock()
 	// Check currently running
 	if client.running {
 		return false
@@ -93,4 +115,14 @@ func (client *Client) IsAvailable() bool {
 		return false
 	}
 	return true
+}
+
+// GetRequestTime returns the last request time
+//
+// Returns:
+//   - time.Time: the client.lastReqTime value 
+func (client *Client) GetRequestTime() time.Time {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+  return client.lastReqTime
 }

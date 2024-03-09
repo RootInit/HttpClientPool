@@ -65,9 +65,9 @@ func NewClientPool(clientDelay, poolDelay time.Duration, proxies []*url.URL, use
 	} else {
 		// Create client for each proxy
 		clients = make([]*Client, len(proxies))
-		for _, proxy := range proxies {
+		for idx, proxy := range proxies {
 			client := NewClient(proxy, Utils.GetRandomUseragent(userAgents), clientDelay)
-			clients = append(clients, client)
+			clients[idx] = client
 		}
 	}
 	return ClientPool{
@@ -85,6 +85,7 @@ func NewClientPool(clientDelay, poolDelay time.Duration, proxies []*url.URL, use
 func (pool *ClientPool) AddClient(client *Client) {
 	pool.Clients = append(pool.Clients, client)
 }
+
 // RemoveClient removes a specific HTTP client from the client pool.
 //
 // If the client is not in the pool the pool remains unchanged.
@@ -97,7 +98,7 @@ func (pool *ClientPool) RemmoveClient(client *Client) {
 	for idx, c := range pool.Clients {
 		// Compare pointer addresses
 		if c == client {
-      // Check if last element
+			// Check if last element
 			if idx < len(pool.Clients)-1 {
 				// Remove from slice
 				pool.Clients = append(pool.Clients[:idx], pool.Clients[idx+1:]...)
@@ -105,7 +106,7 @@ func (pool *ClientPool) RemmoveClient(client *Client) {
 				// Remove the last element
 				pool.Clients = pool.Clients[:idx]
 			}
-      break
+			break
 		}
 	}
 }
@@ -135,25 +136,29 @@ func (pool *ClientPool) SetClientDelay(clientDelay time.Duration) {
 //
 // Returns:
 //   - *Client: A pointer to the available HTTP client.
+
 func (pool *ClientPool) GetClient() *Client {
+	// Calculate time since last request
+	var lastReqTime time.Time
+	for _, client := range pool.Clients {
+    clientReqTime := client.GetRequestTime()
+		if clientReqTime.After(lastReqTime) {
+			lastReqTime = clientReqTime
+		}
+	}
+	lastReqDelta := time.Now().Sub(lastReqTime)
+	if lastReqDelta < pool.delay {
+		// Wait until pool delay elapsed
+		time.Sleep(pool.delay - lastReqDelta)
+	}
 	for {
-		// Get most recent request time
-		var lastReqTime time.Time
 		for _, client := range pool.Clients {
-			if client.lastReqTime.After(lastReqTime) {
-				lastReqTime = client.lastReqTime
+			if client.IsAvailable() {
+				client.SetActive()
+				return client
 			}
 		}
-		// Check pool not ratelimited
-		if !lastReqTime.Add(pool.delay).After(time.Now()) {
-			for _, client := range pool.Clients {
-				if client.IsAvailable() {
-					client.SetActive()
-					return client
-				}
-			}
-		}
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 1)
 	}
 }
 
@@ -165,7 +170,7 @@ func (pool *ClientPool) Done() {
 	for {
 		done := true
 		for _, client := range pool.Clients {
-			if client.running {
+			if client.IsRunning() {
 				done = false
 				break
 			}

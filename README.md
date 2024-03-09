@@ -7,6 +7,10 @@
 
 ---
 
+## Disclaimer
+
+This was made purely for personal use. While everything seems to work in my use cases and passes tests unexpected behavior may occur.
+
 ## Overview
 
 This package facilitates efficient concurrent HTTP requests by managing a pool of individual HTTP clients, each with its configuration and the ability to apply both per-client and global rate limits.
